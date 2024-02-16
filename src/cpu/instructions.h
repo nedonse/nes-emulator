@@ -1,0 +1,9 @@
+//
+// Created by quate on 2/14/2024.
+//
+
+#ifndef TINY_EMULATOR_INSTRUCTIONS_H
+#define TINY_EMULATOR_INSTRUCTIONS_H
+
+
+#endif //TINY_EMULATOR_INSTRUCTIONS_H

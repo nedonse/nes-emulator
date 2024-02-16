@@ -1,0 +1,67 @@
+# Intro
+The MOS6502 is a little-endian 8-bit processor with a 16-bit address memory bus.
+
+It features 2 KB of internal RAM which is mirrored 3 times to occupy the addresses `$0000-$1FFF`. The remaining address
+space is reserved for I/O, PPU registers, and other buffers.
+
+The MOS6502 has a handful of registers:
+- `pc`: 16-bit program counter.
+- `sp`: 8-bit stack pointer. The stack pointer is only an 8-bit address, and is interpreted as an offset from `$0100`, which is the start of the 256-byte page reserved for the stack.
+- `acc`: 8-bit accumulator. Used for arithmetic operations.
+- `x`: 8-bit indexing register.
+- `y`: 8-bit secondary indexing register.
+- `sr`: 8-bit status register. Contains 7 flags. From lowest to highest bit,
+  - `c`: carry flag. Used in addition, subtraction, comparison, and rotation operations.
+  - `z`: zero flag.
+  - `i`: interrupt disable flag. Triggers after handling an interrupt to prevent processor from repeatedly executing interrupt routine if `IRQ` signal is low for multiple cycles.
+  - `d`: decimal flag. Refer to [reference](https://www.nesdev.org/6502_cpu.txt).
+  - `b`: break flag. Distinguishes software interrupts (i.e., `BRK`) from hardware interrupts from `IRQ` or `NMI`. Refer to [reference](https://www.nesdev.org/6502_cpu.txt).
+  - `_`: unused. Always 1.
+  - `v`: overflow flag.
+  - `n`: negative flag.
+
+# Memory Layout
+Main memory `$0000-$1FFF` contains two special features.
+- The first 256 bytes `$0000-$00FF` are the zero page, which has special access instructions that require fewer cycles and bytes to access.
+- The page `$0100-$01FF` is reserved for the stack.
+
+Then, the NES PPU registers lie in `$2000-$2008`, which are mirrored many times to take up the entirety of `$2000-$3FFF`.
+
+Then, the regularly-used NES APU and I/O registers lie in `$4000-$4017`. The remaining registers, which aren't normally used, occupy the rest of the space `$4018-$401F`.
+
+Finally, the remaining chunk of the memory map, `$4020-$FFFF`, goes to the cartridge, which consists of PRG ROM, PRG RAM, and mapping registers.
+
+Refer [here](https://www.nesdev.org/wiki/CPU_memory_map) for further information.
+
+# Instructions
+All opcodes are 8-bit. Refer to this [file](https://www.nesdev.org/6502_cpu.txt) for detailed explanation of nuances and per-cycle behavior and this [page](https://www.nesdev.org/obelisk-6502-guide) for quick summaries of the main opcodes.
+
+## Cycle Breakdown
+On each cycle, the CPU attempts
+
+
+## Addressing Modes
+- Immediate: instead of address, operand is the 8-bit value to be used.
+- Zero Page: 8-bit address to the zero page.
+  - Zero Page,X: zero page address offset by the value of the X register. Offset computation is wrapped.
+  - Zero Page,Y: zero page address offset by the value of the Y register.
+- Absolute: full 16-bit address to any location in the memory map.
+  - Absolute,X
+  - Absolute,Y
+- Relative
+- Indirect
+  - Indirect,X
+  - Indirect,Y
+
+### Crossing a Page Boundary
+For some addressing modes, the effective address crosses a page boundary from the initial address. A "page", in this case, refers to blocks of 256 bytes starting from `$0000`.
+Consider, for example, the following instructions
+
+```
+LDX #1
+ADC $00FF,x
+```
+The effective address of this Absolute,X addressing is then `$0100`, which crosses the boundary. In this case, when the CPU adds the value of `x` to the low byte of the initial address, the operation will wrap and yield an incorrect address.
+The CPU will then need to take an extra cycle to correct the address. Specifically, upon computing the invalid effective address, the CPU will in the next clock cycle read from that possibly invalid address and attempt to validate/fix the effective address simultaneously. If the address was indeed invalid, the CPU takes an extra cycle to read from the fixed effective address.
+
+https://forums.nesdev.org/viewtopic.php?t=13936
