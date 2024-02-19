@@ -11,6 +11,10 @@
 #define LDA 0xA9  // immed
 #define LDX 0xA2  // immed
 
+#define NMI_VEC 0xFFFA
+static const uint16_t RST_VEC = 0xFFFC;
+#define IRQ_VEC 0xFFFE
+
 typedef struct
 {
     uint8_t c : 1;
@@ -34,12 +38,10 @@ struct registers
 };
 
 static struct registers registers;
-static uint8_t bus_value = 0;
-static uint8_t curr_opcode = 0;
+static uint8_t ir = 0;
 static uint8_t curr_instr_offset = 0;
 
-uint8_t fetch();
-uint16_t fetch_addr();
+void reset();
 void cpu_cycle();
 
 

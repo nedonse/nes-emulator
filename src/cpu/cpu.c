@@ -3,24 +3,16 @@
 //
 
 
-#include <stdint.h>
 #include "cpu.h"
 
-uint8_t fetch() {
-    return read(registers.pc);
+void reset() {
+    read(RST_VEC);
+    registers.pc = bus_value;  // lo byte
+    read(RST_VEC + 1);
+    registers.pc += ((uint16_t) bus_value) << 8;  // hi byte
 }
 
 void cpu_cycle() {
-    if (curr_opcode == 0) {
-        curr_opcode = read(registers.pc++);
-        curr_instr_offset = 0;
-    } else {
-        switch (curr_opcode) {
-            case LDA:
-                switch (curr_instr_offset) {
-                    case 0:
-
-                }
-        }
-    }
+    read(registers.pc++);
+    ir = bus_value;
 }

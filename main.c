@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include "src/cpu/cpu.h"
 #include "src/ram/ram.h"
+#include "src/load.h"
 
 enum CPU_State
 {
@@ -10,16 +12,7 @@ enum CPU_State
 };
 
 int main() {
-    while (1) {
-        uint8_t opcode = fetch();
-        bool reg_a = ((opcode & 0x10) != 0);
-        bool reg_x = ((opcode & 0x01) != 0);
-
-        switch (opcode)
-        {
-            case LDA:
-            default:
-        }
-    }
+    uint8_t* rom = load_rom("C:\\Users\\quate\\nes-emulator\\rom\\build\\rom.nes");
+    free(rom);
     return 0;
 }

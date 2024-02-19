@@ -4,7 +4,7 @@ The MOS6502 is a little-endian 8-bit processor with a 16-bit address memory bus.
 It features 2 KB of internal RAM which is mirrored 3 times to occupy the addresses `$0000-$1FFF`. The remaining address
 space is reserved for I/O, PPU registers, and other buffers.
 
-The MOS6502 has a handful of registers:
+The MOS6502 processor has a handful of registers:
 - `pc`: 16-bit program counter.
 - `sp`: 8-bit stack pointer. The stack pointer is only an 8-bit address, and is interpreted as an offset from `$0100`, which is the start of the 256-byte page reserved for the stack.
 - `acc`: 8-bit accumulator. Used for arithmetic operations.
@@ -31,7 +31,59 @@ Then, the regularly-used NES APU and I/O registers lie in `$4000-$4017`. The rem
 
 Finally, the remaining chunk of the memory map, `$4020-$FFFF`, goes to the cartridge, which consists of PRG ROM, PRG RAM, and mapping registers.
 
+The interrupt vectors must be located in the cartridge at
+- `NMI`: `$FFFA-$FFFB`
+- `RESET`: `$FFFC-$FFFD`
+- `IRQ`/`BRK`: `$FFFE-$FFFF`
+
 Refer [here](https://www.nesdev.org/wiki/CPU_memory_map) for further information.
+
+# Memory Types
+There are several main uses of memory: PRG ROM, PRG RAM, CHR ROM, and CHR RAM.
+
+# Cartridges
+The common format for cartridges used by NES emulators is the `.nes` format, pioneered by the iNES emulator.
+There are several variants and updates since the original format was defined. Currently, the most widely adopted format is iNES 2.0.
+
+The `.nes` format is similar to a regular assembled binary format, but includes an extra 16-byte header with the following information:
+- `$0-$3`: 4 bytes for the ASCII characters `NES` (`0x4e`, `0x45`, `0x53`) followed by the MS-DOS end-of-file character `0x1A`.
+- `$4`: Size of PRG ROM in multiples of 16 KB.
+- `$5`: Size of CHR ROM in multiples of 8 KB. (If 0, CHR RAM is to be used.)
+- `$6`: Flags. Represents mapper, mirroring, battery, and trainer.
+- `$7`: Flags.
+- `$8`: Flags. PRG-RAM size.
+- `$9`: Flags.
+- `$A`: Flags.
+- `$B-F`: Unused padding. (Values could be anything, usually zero but sometimes used by a ripper to sign the ROM.)
+
+See [this](https://www.nesdev.org/wiki/INES) for more details about the header.
+
+Cartridges are designed to be highly flexible, enabling them to use circuits and mapping to circumvent storage and RAM size limitations, as well as other hardware capabilities.
+For example, a cartridge might require far more ROM space than is available from the NES address space and instead have many more KB of ROM storage which take turns occupying the mapped address space. This behavior is managed by what is called a mapper, and since each mapper is cartridge-specific, the NES emulation community uses indexing to track different mapper types.
+
+[Guide for writing ROMs](https://www.moria.us/blog/2018/03/nes-development).
+
+Tool used: https://cc65.github.io/getting-started.html
+
+# Interrupts
+## Reset
+Upon power-on, the CPU jumps to the address specified by the reset vector, i.e., it sets `pc` to the value in `$FFFC-$FFFD`.
+
+## NMI
+Non-maskable interrupt. Called on the beginning of the vertical blanking period for every frame.
+https://www.moria.us/blog/2018/03/nes-development
+
+## IRQ
+Signalled by the game cartridge.
+
+# Memory Bus
+Does memory access have zero wait state?
+
+The instruction register is used to store fetched instruction bytes [source](https://www.nesdev.org/wiki/Visual6502wiki/6502_Timing_States).
+
+# PPU
+## Registers
+https://www.nesdev.org/wiki/PPU_registers
 
 # Instructions
 All opcodes are 8-bit. Refer to this [file](https://www.nesdev.org/6502_cpu.txt) for detailed explanation of nuances and per-cycle behavior and this [page](https://www.nesdev.org/obelisk-6502-guide) for quick summaries of the main opcodes.
@@ -65,3 +117,7 @@ The effective address of this Absolute,X addressing is then `$0100`, which cross
 The CPU will then need to take an extra cycle to correct the address. Specifically, upon computing the invalid effective address, the CPU will in the next clock cycle read from that possibly invalid address and attempt to validate/fix the effective address simultaneously. If the address was indeed invalid, the CPU takes an extra cycle to read from the fixed effective address.
 
 https://forums.nesdev.org/viewtopic.php?t=13936
+
+# Testing
+## ROM Programming
+http://www.6502.org/tools/asm/

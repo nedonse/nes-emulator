@@ -12,4 +12,7 @@ add_executable(tiny_emulator main.c
         src/clock.h
         src/ram/ram.c
         src/io.c
-        src/io.h)
+        src/io.h
+        src/mock_rom/mock_rom.h
+        src/load.c
+        src/load.h)
