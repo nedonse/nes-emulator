@@ -37,11 +37,11 @@ struct registers
     flags sr;  // flags
 };
 
-static struct registers registers;
-static uint8_t ir = 0;
-static uint8_t curr_instr_offset = 0;
+extern struct registers registers;
+extern uint8_t ir;
+extern uint8_t curr_instr_offset;
 
-void reset();
+void cpu_reset();
 void cpu_cycle();
 
 

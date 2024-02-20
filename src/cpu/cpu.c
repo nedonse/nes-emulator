@@ -5,7 +5,11 @@
 
 #include "cpu.h"
 
-void reset() {
+struct registers registers;
+uint8_t ir = 0;
+uint8_t curr_instr_offset = 0;
+
+void cpu_reset() {
     read(RST_VEC);
     registers.pc = bus_value;  // lo byte
     read(RST_VEC + 1);

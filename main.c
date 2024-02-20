@@ -5,14 +5,20 @@
 #include "src/ram/ram.h"
 #include "src/load.h"
 
-enum CPU_State
-{
-    WAITING_FOR_OPCODE = 0,
-    EXECUTING,
-};
 
 int main() {
-    uint8_t* rom = load_rom("C:\\Users\\quate\\nes-emulator\\rom\\build\\rom.nes");
-    free(rom);
+    char* rom_file = "C:\\Users\\quate\\nes-emulator\\rom\\build\\rom.nes";
+    const struct nes_file nes_file = open_file(rom_file);
+    load_file(&nes_file);
+
+    cpu_reset();
+
+    size_t ttl = 100;
+    while (ttl != 0) {
+        cpu_cycle();
+        ttl--;
+    }
+
+    free(nes_file.data);
     return 0;
 }

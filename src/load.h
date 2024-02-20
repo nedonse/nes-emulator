@@ -7,6 +7,19 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
+
+struct nes_file
+{
+    /// Vertical mirroring? Otherwise horizontal
+//    bool v_mirror;
+    /// 12-bit index for mapper behavior class
+    uint16_t mapper_idx;
+    size_t prg_size;
+    size_t chr_size;
+    size_t data_size;
+    uint8_t* data;
+};
 
 /**
  * Allocates array of cartridge data into memory.
@@ -15,6 +28,8 @@
  * @param file_path
  * @return
  */
-uint8_t* load_rom(const char* file_path);
+struct nes_file open_file(const char* file_path);
+
+void load_file(const struct nes_file* file);
 
 #endif //TINY_EMULATOR_LOAD_H

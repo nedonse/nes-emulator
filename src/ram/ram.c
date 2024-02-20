@@ -6,8 +6,13 @@
 #define INTERNAL_RAM 0x1FFF
 #define RAM_MASK 0x7FF
 #define PPU 0x3FFF
-#define APU_IO 0x401F
 #define PPU_REG_MASK 0x7
+#define CARTRIDGE_ADDR_OFFSET 0x4000
+
+uint8_t ram[RAM_SIZE];
+uint8_t ppu[PPU_REG_SIZE];
+uint8_t cartridge[CARTRIDGE_SIZE];  /// includes apu/io
+uint8_t bus_value = 0;
 
 
 uint8_t* map(uint16_t addr)
@@ -16,10 +21,8 @@ uint8_t* map(uint16_t addr)
         return &ram[addr & RAM_MASK];
     } else if ((addr | PPU) == PPU) {  // 001....
         return &ppu[addr & PPU_REG_MASK];
-    } else if ((addr | APU_IO) == APU_IO) {  // 01000000_00011111
-        return NULL;  // TODO
     } else {
-        return NULL;
+        return &cartridge[addr - CARTRIDGE_ADDR_OFFSET];
     }
 }
 
