@@ -27,7 +27,7 @@ typedef struct
     uint8_t n : 1;
 } flags;
 
-struct registers
+struct cpu_registers
 {
     uint16_t pc;  // program counter
     uint8_t sp;  // stack pointer
@@ -37,12 +37,16 @@ struct registers
     flags sr;  // flags
 };
 
-extern struct registers registers;
+extern struct cpu_registers cpu_registers;
 extern uint8_t ir;
-extern uint8_t curr_instr_offset;
+extern void (*curr_execute_func)();
 
 void cpu_reset();
 void cpu_cycle();
+void cpu_execute_instr();
 
+void cpu_nop();
+void cpu_decode();
+void cpu_ldx_imm();
 
 #endif //TINY_EMULATOR_CPU_H

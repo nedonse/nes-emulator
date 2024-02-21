@@ -1,4 +1,4 @@
-;;; PPU registers.
+;;; PPU cpu_registers.
 PPUCTRL		= $2000
 PPUMASK		= $2001
 PPUSTATUS	= $2002
@@ -8,7 +8,7 @@ PPUSCROLL	= $2005
 PPUADDR		= $2006
 PPUDATA		= $2007
 
-;;; Other IO registers.
+;;; Other IO cpu_registers.
 OAMDMA		= $4014
 APUSTATUS	= $4015
 JOYPAD1		= $4016

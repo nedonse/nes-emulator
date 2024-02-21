@@ -2,9 +2,9 @@
 The MOS6502 is a little-endian 8-bit processor with a 16-bit address memory bus.
 
 It features 2 KB of internal RAM which is mirrored 3 times to occupy the addresses `$0000-$1FFF`. The remaining address
-space is reserved for I/O, PPU registers, and other buffers.
+space is reserved for I/O, PPU cpu_registers, and other buffers.
 
-The MOS6502 processor has a handful of registers:
+The MOS6502 processor has a handful of cpu_registers:
 - `pc`: 16-bit program counter.
 - `sp`: 8-bit stack pointer. The stack pointer is only an 8-bit address, and is interpreted as an offset from `$0100`, which is the start of the 256-byte page reserved for the stack.
 - `acc`: 8-bit accumulator. Used for arithmetic operations.
@@ -28,11 +28,11 @@ Main memory `$0000-$1FFF` contains two special features.
 - The first 256 bytes `$0000-$00FF` are the zero page, which has special access instructions that require fewer cycles and bytes to access.
 - The page `$0100-$01FF` is reserved for the stack.
 
-Then, the NES PPU registers lie in `$2000-$2008`, which are mirrored many times to take up the entirety of `$2000-$3FFF`.
+Then, the NES PPU cpu_registers lie in `$2000-$2008`, which are mirrored many times to take up the entirety of `$2000-$3FFF`.
 
-Then, the regularly-used NES APU and I/O registers lie in `$4000-$4017`. The remaining registers, which aren't normally used, occupy the rest of the space `$4018-$401F`.
+Then, the regularly-used NES APU and I/O cpu_registers lie in `$4000-$4017`. The remaining cpu_registers, which aren't normally used, occupy the rest of the space `$4018-$401F`.
 
-Finally, the remaining chunk of the memory map, `$4020-$FFFF`, goes to the cartridge, which consists of PRG ROM, PRG RAM, CHR ROM, CHR RAM, and mapping registers.
+Finally, the remaining chunk of the memory map, `$4020-$FFFF`, goes to the cartridge, which consists of PRG ROM, PRG RAM, CHR ROM, CHR RAM, and mapping cpu_registers.
 (In emulation, this part of memory layout may be implemented extremely flexibly?)
 
 The interrupt vectors must be located in the cartridge at
