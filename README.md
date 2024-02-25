@@ -114,6 +114,8 @@ On each cycle, the CPU attempts
   - Indirect,X
   - Indirect,Y
 
+See this [page](https://www.nesdev.org/wiki/CPU_addressing_modes) and [cpu_txt](https://www.nesdev.org/6502_cpu.txt)
+
 ### Crossing a Page Boundary
 For some addressing modes, the effective address crosses a page boundary from the initial address. A "page", in this case, refers to blocks of 256 bytes starting from `$0000`.
 Consider, for example, the following instructions

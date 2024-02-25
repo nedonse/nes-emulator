@@ -15,6 +15,7 @@ int main() {
 
     size_t ttl = 100;
     while (ttl != 0) {
+        mem_op = false;
         cpu_cycle();
         ttl--;
     }
