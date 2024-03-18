@@ -15,10 +15,22 @@
 
 uint8_t ram[RAM_SIZE];
 uint8_t cartridge[CARTRIDGE_SIZE];  /// includes apu/io
-uint8_t bus_value = 0;
+uint16_t addr_bus = 0;
+uint8_t data_bus = 0;
 
-bool mem_op = false;
-
+/**
+ * Returns a pointer to the byte located at the provided memory address.
+ *
+ * The NES memory map has the following layout:
+ * 0x0000-0x07FF: Internal RAM
+ * 0x0800-0x1FFF: Mirrors of 0x0000-0x07FF
+ * 0x2000-0x2007: CPU view of PPU registers
+ * 0x2008-0x3FFF: Mirrors of 0x2000-0x2007
+ * 0x4000-0xFFFF: Device and cartridge space (exact layout and memory usage depends on the cartridge)
+ *
+ * @param addr The 16-bit address to look up.
+ * @return A pointer to the byte. Returns NULL if the address is invalid.
+ */
 uint8_t* map(uint16_t addr)
 {
     if ((addr & INTERNAL_RAM) == addr) {  // 000....
@@ -30,28 +42,19 @@ uint8_t* map(uint16_t addr)
     }
 }
 
-void read(uint16_t addr)
+
+void read()
 {
-//    if (mem_op) {
-//        fprintf(stderr, "Attempted multiple memory operations per cycle");
-//        exit(-1);
-//    }
-    if (map(addr) != NULL) {
-        bus_value = *map(addr);
+    if (map(addr_bus) != NULL) {
+        data_bus = *map(addr_bus);
     }
-    mem_op = true;
     // Default open bus
 }
 
-void write(uint16_t addr)
+void write()
 {
-//    if (mem_op) {
-//        fprintf(stderr, "Attempted multiple memory operations per cycle");
-//        exit(-1);
-//    }
-    if (map(addr) != NULL) {
-        *map(addr) = bus_value;
+    if (map(addr_bus) != NULL) {
+        *map(addr_bus) = data_bus;
     }
-    mem_op = true;
     // Default open bus
 }

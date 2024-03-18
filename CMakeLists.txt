@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.27)
-project(tiny_emulator C)
+project(nes_emulator C)
 
 set(CMAKE_C_STANDARD 17)
 
-add_executable(tiny_emulator main.c
+include_directories(src)
+
+add_executable(nes_emulator main.c
         src/cpu/cpu.h
         src/ram/ram.h
         src/cpu/cpu.c
@@ -15,4 +17,6 @@ add_executable(tiny_emulator main.c
         src/load.c
         src/load.h
         src/ppu.c
-        src/ppu.h)
+        src/ppu.h
+        src/utils.c
+        src/utils.h)
