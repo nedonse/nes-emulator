@@ -129,7 +129,53 @@ void cpu_reset()
     _cpu__push(&cpu_fetch_instr, &cpu__decode, false);  // NOTE: cpu_decode step might increment the PC based off of the opcode, so do not automatically increment the PC
 }
 
+void fetch_next_opcode() {
+    addr_bus = cpu_registers.pc;
+    read();
+    cpu_registers.pc++;
+}
 
+uint16_t zero_page(uint8_t zp_addr) {
+    return (uint16_t) zp_addr;
+}
+
+enum AddressingMode {
+    IMM = 0,  // R
+    ZP,       // RWM
+    ZP_X,     // RWM
+    ABS,      // RWM
+    ABS_X,    // RWM
+    ABS_Y,    // RWM
+    IND_X,    // RWM
+    IND_Y,    // RWM
+    NUM_ADDRESSING_MODES
+};
+
+enum AddressingMode get_addressing_mode(uint8_t opcode)
+{
+    uint8_t addr_mode_bits = (opcode & 0b00011100) >> 2;
+    switch (addr_mode_bits)
+    {
+        case 0: return IND_X;
+        case 1: return ZP;
+        case 2: return IMM;
+        case 3: return ABS;
+        case 4: return IND_Y;
+        case 5: return ZP_X;
+        case 6: return ABS_Y;
+        case 7: return ABS_X;
+    }
+    exit(-1);
+}
+
+void read_pc() {
+    addr_bus = cpu_registers.pc;
+    read();
+}
+
+#define BEGIN_RESUMABLE static size_t resume_location = __LINE__; switch (resume_location) { case __LINE__:;
+#define END_CYCLE resume_location = __LINE__; return; case __LINE__:;
+#define END_RESUMABLE }
 /**
  * Runs a single cycle of the CPU.
  *
@@ -141,509 +187,453 @@ void cpu_reset()
  */
 void cpu_cycle()
 {
-    struct cpu__queue_elem next = _cpu__pop();
-    next.cpu_exec();
-    next.cpu_mem_op();
-    if (next.inc_pc) {
-        cpu_registers.pc++;
+    static bool page_cross = false;
+    BEGIN_RESUMABLE
+    while (1) {
+        ir = data_bus;
+
+        // Load correct address into memory based on the addressing mode
+        enum AddressingMode addr_mode = get_addressing_mode(ir);
+        if (addr_mode == IND_X)
+        {
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            addr_bus = zero_page(data_bus);  // throw-away read to original address while offset is performed
+            addr_latch = zero_page(data_bus + cpu_registers.idx_x);
+            read();
+
+            END_CYCLE
+
+            addr_bus = addr_latch;
+            read();
+
+            END_CYCLE
+
+            set_low_byte(&addr_latch, data_bus);
+            addr_bus++;
+            read();
+
+            END_CYCLE
+
+            set_high_byte(&addr_latch, data_bus);
+            addr_bus = addr_latch;
+            read();
+        }
+        else if (addr_mode == ZP)
+        {
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            addr_bus = zero_page(data_bus);
+        }
+        else if (addr_mode == IMM)
+        {
+            addr_bus = cpu_registers.pc;
+            cpu_registers.pc++;
+            read();
+        }
+        else if (addr_mode == ABS)
+        {
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            set_low_byte(&addr_latch, data_bus);
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            set_high_byte(&addr_latch, data_bus);
+            addr_bus = addr_latch;
+            read();
+        }
+        else if (addr_mode == IND_Y)
+        {
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            addr_bus = zero_page(data_bus);
+            read();
+
+            END_CYCLE
+
+            page_cross = data_bus + cpu_registers.idx_y < data_bus;
+            set_low_byte(&addr_latch, data_bus + cpu_registers.idx_y);
+            addr_bus++;
+            read();
+
+            END_CYCLE
+
+            set_high_byte(&addr_latch, data_bus);
+            addr_bus = addr_latch;
+            read();
+
+            if (page_cross)
+            {
+                set_high_byte(&addr_latch, get_high_byte(addr_latch) + 1);
+
+                END_CYCLE
+
+                addr_bus = addr_latch;
+                read();
+            }
+        }
+        else if (addr_mode == ZP_X)
+        {
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            addr_bus = zero_page(data_bus);  // throw-away read to original address while offset is performed
+            addr_latch = zero_page(data_bus + cpu_registers.idx_x);
+            read();
+
+            END_CYCLE
+
+            addr_bus = addr_latch;
+            read();
+        }
+        else if (addr_mode == ABS_Y)
+        {
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            set_low_byte(&addr_latch, data_bus);
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            set_high_byte(&addr_latch, data_bus);
+            page_cross = get_low_byte(addr_latch) + cpu_registers.idx_y < get_low_byte(addr_latch);
+            set_low_byte(&addr_latch, get_low_byte(addr_latch) + cpu_registers.idx_y);
+            addr_bus = addr_latch;
+            read();
+
+            if (page_cross)
+            {
+                END_CYCLE
+
+                set_high_byte(&addr_latch, get_high_byte(addr_latch) + 1);
+                addr_bus = addr_latch;
+                read();
+            }
+        }
+        else  // Absolute, X
+        {
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            set_low_byte(&addr_latch, data_bus);
+            addr_bus = cpu_registers.pc;
+            read();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            set_high_byte(&addr_latch, data_bus);
+            page_cross = get_low_byte(addr_latch) + cpu_registers.idx_x < get_low_byte(addr_latch);
+            set_low_byte(&addr_latch, get_low_byte(addr_latch) + cpu_registers.idx_x);
+            addr_bus = addr_latch;
+            read();
+
+            if (page_cross)
+            {
+                END_CYCLE
+
+                set_high_byte(&addr_latch, get_high_byte(addr_latch) + 1);
+                addr_bus = addr_latch;
+                read();
+            }
+        }
+
+        if (ir & 0b01100001 && ~ir & 0b10000010)  // ADC (011xxx01)
+        {
+            if (~ir & 0b00011100)  // (Indirect,X)
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                addr_bus = zero_page(data_bus);  // throw-away read to original address while offset is performed
+                addr_latch = zero_page(data_bus + cpu_registers.idx_x);
+                read();
+
+                END_CYCLE
+
+                addr_bus = addr_latch;
+                read();
+
+                END_CYCLE
+
+                set_low_byte(&addr_latch, data_bus);
+                addr_bus++;
+                read();
+
+                END_CYCLE
+
+                set_high_byte(&addr_latch, data_bus);
+                addr_bus = addr_latch;
+                read();
+            }
+            else if (ir & 0b00000100 && ~ir & 0b00011000)  // Zero page
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                addr_bus = zero_page(data_bus);
+                read();
+            }
+            else if (ir & 0b00001000 && ~ir & 0b00010100)  // Immediate/Implied
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+            }
+            else if (ir & 0b00001100 && ~ir & 0b00010000)  // Absolute
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                set_low_byte(&addr_latch, data_bus);
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                set_high_byte(&addr_latch, data_bus);
+                addr_bus = addr_latch;
+                read();
+            }
+            else if (ir & 0b00010000 && ~ir & 0b00001100)  // (Indirect),Y
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                addr_bus = zero_page(data_bus);
+                read();
+
+                END_CYCLE
+
+                page_cross = data_bus + cpu_registers.idx_y < data_bus;
+                set_low_byte(&addr_latch, data_bus + cpu_registers.idx_y);
+                addr_bus++;
+                read();
+
+                END_CYCLE
+
+                set_high_byte(&addr_latch, data_bus);
+                addr_bus = addr_latch;
+                read();
+
+                if (page_cross)
+                {
+                    set_high_byte(&addr_latch, get_high_byte(addr_latch) + 1);
+
+                    END_CYCLE
+
+                    addr_bus = addr_latch;
+                    read();
+                }
+            }
+            else if (ir & 0b00010100 && ~ir & 0b00001000)  // Zero page, X
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                addr_bus = zero_page(data_bus);  // throw-away read to original address while offset is performed
+                addr_latch = zero_page(data_bus + cpu_registers.idx_x);
+                read();
+
+                END_CYCLE
+
+                addr_bus = addr_latch;
+                read();
+            }
+            else if (ir & 0b00011000 && ~ir & 0b00000100)  // Absolute, Y/Implied
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                set_low_byte(&addr_latch, data_bus);
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                set_high_byte(&addr_latch, data_bus);
+                page_cross = get_low_byte(addr_latch) + cpu_registers.idx_y < get_low_byte(addr_latch);
+                set_low_byte(&addr_latch, get_low_byte(addr_latch) + cpu_registers.idx_y);
+                addr_bus = addr_latch;
+                read();
+
+                if (page_cross)
+                {
+                    END_CYCLE
+
+                    set_high_byte(&addr_latch, get_high_byte(addr_latch) + 1);
+                    addr_bus = addr_latch;
+                    read();
+                }
+            }
+            else if (ir & 0b00011100)  // Absolute, X
+            {
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                set_low_byte(&addr_latch, data_bus);
+                addr_bus = cpu_registers.pc;
+                read();
+                cpu_registers.pc++;
+
+                END_CYCLE
+
+                set_high_byte(&addr_latch, data_bus);
+                page_cross = get_low_byte(addr_latch) + cpu_registers.idx_x < get_low_byte(addr_latch);
+                set_low_byte(&addr_latch, get_low_byte(addr_latch) + cpu_registers.idx_x);
+                addr_bus = addr_latch;
+                read();
+
+                if (page_cross)
+                {
+                    END_CYCLE
+
+                    set_high_byte(&addr_latch, get_high_byte(addr_latch) + 1);
+                    addr_bus = addr_latch;
+                    read();
+                }
+            }
+
+            END_CYCLE
+
+            if (data_bus + cpu_registers.acc < cpu_registers.acc) {  // TODO: this _should_ work lol
+                cpu_registers.sr.v = 1;
+            }
+            cpu_registers.acc += data_bus;
+            if (cpu_registers.acc == 0) {
+                cpu_registers.sr.z = 1;
+            }
+            if (cpu_registers.sr.v) {
+                cpu_registers.sr.c = 1;
+            }
+            if (cpu_registers.acc >> 7) {
+                cpu_registers.sr.n = 1;
+            }
+        }
+
+        else if (ir & 0b10100001 && ~ir & 0b01000010)  // LDA (101xxx01)
+        {
+
+
+            END_CYCLE
+
+            if (data_bus + cpu_registers.acc < cpu_registers.acc) {  // TODO: this _should_ work lol
+                cpu_registers.sr.v = 1;
+            }
+            cpu_registers.acc += data_bus;
+            if (cpu_registers.acc == 0) {
+                cpu_registers.sr.z = 1;
+            }
+            if (cpu_registers.sr.v) {
+                cpu_registers.sr.c = 1;
+            }
+            if (cpu_registers.acc >> 7) {
+                cpu_registers.sr.n = 1;
+            }
+        }
+        }
+
+        else if (ir == CLC)  // NOTE: No switch statement because of END_CYCLE
+        {
+            read_pc();
+            END_CYCLE
+            cpu_registers.sr.c = 0;
+        }
+        else if (ir == SEC)
+        {
+            read_pc();
+            END_CYCLE
+            cpu_registers.sr.c = 1;
+        }
+        else if (ir == CLI)
+        {
+            read_pc();
+            END_CYCLE
+            cpu_registers.sr.i = 0;
+        }
+        if (ir == SEI)
+        {
+            read_pc();
+            END_CYCLE
+            cpu_registers.sr.i = 1;
+        }
+        else if (ir == CLV)
+        {
+            read_pc();
+            END_CYCLE
+            cpu_registers.sr.v = 0;
+        }
+        else if (ir == CLD)
+        {
+            read_pc();
+            END_CYCLE
+            cpu_registers.sr.d = 0;
+        }
+        else if (ir == SED)
+        {
+            read_pc();
+            END_CYCLE
+            cpu_registers.sr.d = 0;
+        }
+
+        fetch_next_opcode();
+
+        END_CYCLE
     }
-}
-
-void cpu_fetch_instr()
-{
-    addr_bus = cpu_registers.pc;
-    read();
-    pd = data_bus;
-}
-
-void cpu_new_opcode()
-{
-
-}
-
-
-/**
- * Sets low byte of address latch to byte at PC address
- */
-void cpu_read_addr_lo()
-{
-    addr_bus = cpu_registers.pc;
-    read();
-    set_low_byte(&addr_latch, data_bus);
-}
-
-
-/**
- * Sets high byte of address latch to byte at PC address
- */
-void cpu_read_addr_hi()
-{
-    addr_bus = cpu_registers.pc;
-    read();
-    set_high_byte(&addr_latch, data_bus);
-}
-
-
-/**
- * Clears high byte of address latch for zero page addressing operations
- */
-void cpu_clear_addr_hi()
-{
-    addr_latch = addr_latch & 0x00FF;
-}
-
-
-/**
- * Triggers read operation on address stored in address latch
- */
-void cpu_read_at_addr()
-{
-    addr_bus = addr_latch;
-    read();
-}
-
-
-/**
- * Loads last read byte into accumulator
- */
-void cpu_load_into_a()
-{
-    cpu_registers.acc = data_bus;
-}
-
-
-/**
- * Loads last read byte into x register
- */
-void cpu_load_into_x()
-{
-    cpu_registers.idx_x = data_bus;
-}
-
-
-/**
- * Loads last read byte into y register
- */
-void cpu_load_into_y()
-{
-    cpu_registers.idx_y = data_bus;
-}
-
-
-/**
- * Stores accumulator value into memory at address latch
- */
-void cpu_store_from_a()
-{
-    data_bus = cpu_registers.acc;
-    addr_bus = addr_latch;
-    write();
-}
-
-
-/**
- * Stores x register into memory at address latch
- */
-void cpu_store_from_x()
-{
-    data_bus = cpu_registers.idx_x;
-    addr_bus = addr_latch;
-    write();
-}
-
-
-/**
- * Stores y register into memory at address latch
- */
-void cpu_store_from_y()
-{
-    data_bus = cpu_registers.idx_y;
-    addr_bus = addr_latch;
-    write();
-}
-
-
-/**
- * Adds value in data bus to accumulator
- *
- * Sets carry and overflow flags if overflow occurs, zero flag if resulting accumulator value is 0, and negative flag if bit 7 is set.
- */
-void cpu_add_to_acc()
-{
-    if (data_bus + cpu_registers.acc < cpu_registers.acc) {  // TODO: this _should_ work lol
-        cpu_registers.sr.v = 1;
-    }
-    cpu_registers.acc += data_bus;
-    if (cpu_registers.acc == 0) {
-        cpu_registers.sr.z = 1;
-    }
-    if (cpu_registers.sr.v) {
-        cpu_registers.sr.c = 1;
-    }
-    if (cpu_registers.acc >> 7) {
-        cpu_registers.sr.n = 1;
-    }
-}
-
-
-/**
- * Bit-wise AND on accumulator with value in data bus.
- *
- * Sets zero flag if resulting acc value is 0 and negative flag if resulting acc value bit 7 is set.
- */
-void cpu_and_with_acc()
-{
-    cpu_registers.acc = cpu_registers.acc & data_bus;
-    if (cpu_registers.acc == 0) {
-        cpu_registers.sr.z = 1;
-    }
-    if (cpu_registers.acc >> 7) {
-        cpu_registers.sr.n = 1;
-    }
-}
-
-
-// TODO:
-void cpu_arith_shift_left()
-{
-}
-
-
-// TODO:
-void cpu_arith_shift_left_acc()
-{
-}
-
-
-#define CPU__COND_BRANCH(check_expr) \
-    uint8_t addr_offset = data_bus; \
-    addr_bus = cpu_registers.pc;    \
-    read();                         \
-    if (check_expr) {               \
-        *((uint8_t*) &cpu_registers.pc) += addr_offset; /* TODO: Push cpu_fix_pch */ \
-    } else { \
-        cpu_registers.pc++; \
-        cpu_new_opcode(); \
-    }
-
-
-void cpu_branch_if_z_set()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.z)
-}
-
-
-void cpu_branch_if_c_set()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.c)
-}
-
-
-void cpu_branch_if_n_set()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.n)
-}
-
-
-void cpu_branch_if_v_set()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.v)
-}
-
-
-void cpu_branch_if_c_clear()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.c == 0)
-}
-
-
-void cpu_branch_if_z_clear()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.z == 0)
-}
-
-
-void cpu_branch_if_n_clear()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.n == 0)
-}
-
-
-void cpu_branch_if_v_clear()
-{
-    CPU__COND_BRANCH(cpu_registers.sr.v == 0)
-}
-
-
-/**
- * Takes bit-wise AND between acc and data bus value and throws away the result. Sets flags accordingly.
- *
- * Zero flag set if result is 0.
- * Overflow flag set if bit 6 of result is set.
- * Negative flag set if bit 7 of result is set.
- */
-void cpu_bit_test()
-{
-    uint8_t res = cpu_registers.acc & data_bus;
-    cpu_registers.sr.z = (res == 0);
-    cpu_registers.sr.v = (res & 0x4000);
-    cpu_registers.sr.n = (res & 0x8000);
-    // END of BIT
-}
-
-
-/**
- * ============================= Stack operations ===============================
- */
-
-/**
- *
- * @param sp
- * @return
- */
-uint16_t sp_to_address(uint8_t sp)
-{
-    return STACK_PAGE_START + sp;
-}
-
-
-void stack_push(uint8_t val)
-{
-    addr_bus = sp_to_address(cpu_registers.sp);
-    cpu_registers.sp--;
-    data_bus = val;
-    write();
-}
-
-
-/**
- * ======================== BRK cycles ==============================
- */
-
-
-void cpu_push_pc_high_set_b_flag()
-{
-    cpu_registers.sr.b = 1;
-    stack_push(get_high_byte(cpu_registers.pc));
-}
-
-
-void cpu_push_pc_low()
-{
-    stack_push(get_low_byte(cpu_registers.pc));
-}
-
-
-void cpu_push_sr()
-{
-    stack_push(cpu_registers.sr.u8);
-}
-
-
-/**
- * Fetches high byte of IRQ/BRK vector address
- */
-void cpu_fetch_irq_brk_high()
-{
-    addr_bus = IRQ_VEC_HI;
-    read();
-    set_high_byte(&addr_latch, data_bus);
-}
-
-
-/**
- * Fetches low byte of IRQ/BRK vector address and sets PC
- */
-void cpu_fetch_irq_brk_low()
-{
-    addr_bus = IRQ_VEC_LO;
-    read();
-    set_high_byte(&addr_latch, data_bus);
-    cpu_registers.pc = addr_latch;
-}
-
-
-/**
- * ======================== RTI cycles ==============================
- */
-
-
-/**
- * Does a dummy read on the stack address and then increments
- */
-void cpu_inc_sp()
-{
-    addr_bus = sp_to_address(cpu_registers.sp);
-    cpu_registers.sp++;
-    read();
-}
-
-
-void cpu_pop_with_inc()
-{
-    addr_bus = sp_to_address(cpu_registers.sp);
-    cpu_registers.sp++;
-    read();
-}
-
-
-void cpu_pop_sans_inc()
-{
-    addr_bus = sp_to_address(cpu_registers.sp);
-    read();
-}
-
-
-void cpu_pop_and_store_sr()
-{
-    cpu_registers.sr.u8 = data_bus;
-    addr_bus = sp_to_address(cpu_registers.sp);
-    cpu_registers.sp++;
-    read();
-}
-
-
-void cpu_pop_and_store_()
-{
-    cpu_registers.sr.u8 = data_bus;
-    addr_bus = sp_to_address(cpu_registers.sp);
-    cpu_registers.sp++;
-    read();
-}
-
-
-/**
- * =================== Setting register cycles ======================
- */
-void cpu__set_i() { cpu_registers.sr.i = 1; }
-void cpu__set_c() { cpu_registers.sr.c = 1; }
-void cpu__set_v() { cpu_registers.sr.v = 1; }
-void cpu__set_d() { cpu_registers.sr.d = 1; }
-void cpu__clear_i() { cpu_registers.sr.i = 0; }
-void cpu__clear_c() { cpu_registers.sr.c = 0; }
-void cpu__clear_v() { cpu_registers.sr.v = 0; }
-void cpu__clear_d() { cpu_registers.sr.d = 0; }
-void cpu__txs() { cpu_registers.sp = cpu_registers.idx_x; }
-void cpu__inx() { cpu_registers.sp = cpu_registers.idx_x; }
-
-/**
- * CPU opcode decode step. CPU always executes an instruction fetch operation while this occurs (and possibly throws the result away).
- */
-//void cpu__decode()
-//{
-//    assert(cpu__queue__size == 0);
-//    switch (ir) {
-//        case SEI:
-//            _cpu__push(&cpu_fetch_instr, &cpu__sei, true);  // Implied addressing pattern
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode, false);
-//            break;
-//        case CLD:
-//            _cpu__push(&cpu_fetch_instr, &cpu__cld, true);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode, false);
-//            break;
-//        case CLI:
-//            _cpu__push(&cpu_fetch_instr, &cpu__cli, true);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode, false);
-//            break;
-//        case TXS:
-//            _cpu__push(&cpu_fetch_instr, &cpu__txs, true);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode, false);
-//            break;
-//        case INX:
-//            _cpu__push(&cpu_fetch_instr, &cpu__inx, true);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode, false);
-//            break;
-//        case LDX_IMM:
-//            _cpu__push(&cpu_fetch_instr, &cpu_ldx_imm, true);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode, false);
-//            cpu_registers.pc++;
-//            break;
-//        case LDX_ABS:
-//            _cpu__push(&cpu_fetch_instr, &cpu_parse_addr_lo, true);  // Fetch high byte, parse low byte
-//            _cpu__push(&cpu_read_addr, &cpu_parse_addr_hi, true);  //
-//        case STX_ABS:
-//            _cpu__push(&cpu_fetch_instr, &cpu_null_exec, true);
-//            _cpu__push(&cpu_fetch_addr_hi);  // does fetch for next instr TODO: Not cycle accurate!
-//            _cpu__push(&cpu_stx);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode);
-//            break;
-//        case BIT_ABS:
-//            _cpu__push(&cpu_parse_addr_abs_lo);
-//            _cpu__push(&cpu_parse_addr_abs_hi);  // TODO:
-//            _cpu__push(&cpu_read_from_addr);
-//            _cpu__push(&cpu_bit);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode);
-//        case BPL:
-//            _cpu__push(&cpu_fetch_instr_no_inc);
-//            _cpu__push(&cpu_fetch_instr, &cpu__decode);
-//        default:
-//            exit(ERROR_UNKNOWN_INSTR);
-//    }
-//}
-//
-//void cpu__stx()
-//{
-//    data_bus = cpu_registers.idx_x;
-//}
-//
-//void cpu_read_from_addr()
-//{
-//    read(addr);
-//}
-//
-//void cpu_inc_pc()
-//{
-//    cpu_registers.pc++;
-//}
-//
-//void cpu_nop()
-//{
-//}
-//
-//void cpu_ldx_imm()
-//{
-//    cpu_registers.idx_x = ir;
-//}
-//
-//void cpu_bit()
-//{
-//    cpu_registers.sr.z = ((data_bus & cpu_registers.acc) == 0);
-//    cpu_registers.sr.v = (data_bus >> 6) & 1;
-//    cpu_registers.sr.n = (data_bus >> 7) & 1;
-//}
-//
-//
-//void cpu_branch(uint8_t opcode)
-//{
-//    _cpu__push(&cpu_fetch_instr);  // Fetch operand
-//    switch (opcode >> 5) {
-//        case 0:
-//            _cpu__push(&cpu_bpl);
-//            break;
-//        case 1:
-//            _cpu__push(&cpu_bmi);
-//            break;
-//        case 2:
-//            _cpu__push(&cpu_bvc);
-//            break;
-//        case 3:
-//            _cpu__push(&cpu_bvs);
-//            break;
-//        case 4:
-//            _cpu__push(&cpu_bcc);
-//            break;
-//        case 5:
-//            _cpu__push(&cpu_bcs);
-//            break;
-//        case 6:
-//            _cpu__push(&cpu_bne);
-//            break;
-//        case 7:
-//            _cpu__push(&cpu_beq);
-//            break;
-//    }
-//}
-
-void cpu_ld(uint8_t opcode)
-{
+    END_RESUMABLE
 }

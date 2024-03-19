@@ -12,9 +12,14 @@
 #define ERROR_CPU_QUEUE (-2)
 
 /// Instruction bytes
-#define SEI 0x78
-#define CLD 0xD8
+#define CLC 0x18
+#define SEC 0x38
 #define CLI 0x58
+#define SEI 0x78
+#define CLV 0xB8
+#define CLD 0xD8
+#define SED 0xF8
+
 #define NOP 0xEA
 #define LDX_IMM 0xA2
 #define LDX_ABS 0xAE
