@@ -7,7 +7,7 @@
 
 
 int main() {
-    char* rom_file = "C:\\Users\\quate\\nes-emulator\\rom\\build\\rom.nes";
+    const char* rom_file = "C:\\Users\\quate\\nes-emulator\\rom\\build\\rom.nes";
     const struct nes_file nes_file = open_file(rom_file);
     load_file(&nes_file);
 
@@ -15,7 +15,6 @@ int main() {
 
     size_t ttl = 100;
     while (ttl != 0) {
-        mem_op = false;
         cpu_cycle();
         ttl--;
     }
