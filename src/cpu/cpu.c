@@ -107,18 +107,48 @@ enum Instruction
     STX,
     STA,
     STY,
-    ADC
+    ADC,
+    BIT,
+    BPL,
+    BMI,
+    BVC,
+    BVS,
+    BCC,
+    BCS,
+    BNE,
+    BEQ,
+    NUM_INSTRUCTIONS
 };
 
 
-enum Instruction get_instr(uint8_t opcode)
+enum Instruction get_instr(const uint8_t opcode)
 {
     if (!((opcode ^ 0b10100010) & 0b11100011)) { return LDX; }
     if (!((opcode ^ 0b10100001) & 0b11100011)) { return LDA; }
     if (!((opcode ^ 0b10000010) & 0b11100011)) { return STX; }
     if (!((opcode ^ 0b01100001) & 0b11100011)) { return ADC; }
+    if (!((opcode ^ 0b00100100) & 0b11110111)) { return BIT; }
+    if (!((opcode ^ 0b00010000) & 0b00011111))  // Branching
+    {
+        switch (opcode >> 5)
+        {
+            case 0: return BPL;
+            case 1: return BMI;
+            case 2: return BVC;
+            case 3: return BVS;
+            case 4: return BCC;
+            case 5: return BCS;
+            case 6: return BNE;
+            case 7: return BEQ;
+        }
+    }
     fprintf(stderr, "Unimplemented opcode encountered");
     exit(ERROR_CODE__UNIMPLEMENTED);
+}
+
+bool is_branch_instr(const uint8_t opcode)
+{
+    return !((opcode ^ 0b00010000) & 0b00011111);
 }
 
 void read_pc() {
@@ -294,9 +324,50 @@ void cpu_cycle()
         static enum Instruction instr;
         static enum ReadWrite rw = NONE;
 
+        static bool page_cross = false;
+
         addr_mode = get_addressing_mode(ir);
         instr = get_instr(ir);
 
+        // If branch instr, addressing mode is a branch-only mode called "relative"; forego usual control flow
+        if (is_branch_instr(ir))
+        {
+            // Fetch operand
+            read_pc();
+            cpu_registers.pc++;
+
+            END_CYCLE
+
+            if (instr == BPL && !cpu_registers.sr.n ||
+                instr == BMI && cpu_registers.sr.n ||
+                instr == BVC && !cpu_registers.sr.v ||
+                instr == BVS && cpu_registers.sr.v ||
+                instr == BCC && !cpu_registers.sr.c ||
+                instr == BCS && cpu_registers.sr.c ||
+                instr == BNE && !cpu_registers.sr.z ||
+                instr == BEQ && cpu_registers.sr.z)
+            {
+                int8_t offset = (int8_t) data_bus;
+                read_pc();  // dummy read
+                static uint16_t true_addr;
+                true_addr = cpu_registers.pc + offset;
+                set_low_byte(&cpu_registers.pc, get_low_byte(true_addr));
+
+                END_CYCLE
+
+                if (cpu_registers.pc != true_addr)
+                {
+                    read_pc();  // dummy read
+                    set_high_byte(&cpu_registers.pc, get_high_byte(true_addr));
+
+                    END_CYCLE
+                }
+            }
+
+            continue;
+        }
+
+        rw = NONE;
         if (instr == LDX)
         {
             rw = READ;
@@ -311,8 +382,13 @@ void cpu_cycle()
                 exit(ERROR_CODE__UNIMPLEMENTED);
             }
         }
+        if (instr == BIT)
+        {
+            rw = READ;
+            if (addr_mode != ZP_X && addr_mode != ABS) { exit(ERROR_CODE__OH_NO); }
+        }
 
-        static bool page_cross = false;
+        page_cross = false;
 
         if (addr_mode == IMM)
         {
@@ -512,6 +588,7 @@ void cpu_cycle()
 
         END_CYCLE
 
+        // Read instruction last-cycle behaviors
         if (instr == ADC)
         {
             cpu_registers.sr.v = (cpu_registers.acc + data_bus + cpu_registers.sr.c < cpu_registers.acc);
@@ -529,6 +606,13 @@ void cpu_cycle()
         else if (instr == LDX)
         {
             cpu_registers.idx_x = data_bus;
+        }
+
+        else if (instr == BIT)
+        {
+            cpu_registers.sr.z = ((cpu_registers.acc & data_bus) == 0);
+            cpu_registers.sr.v = (data_bus & 0x40) >> 6;
+            cpu_registers.sr.n = data_bus >> 7;
         }
     }
     END_RESUMABLE

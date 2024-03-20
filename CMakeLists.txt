@@ -3,6 +3,8 @@ project(nes_emulator C)
 
 set(CMAKE_C_STANDARD 17)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+
 include_directories(src)
 
 add_executable(nes_emulator main.c
