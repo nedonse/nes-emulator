@@ -78,6 +78,8 @@ See [this README](rom/README.md) for how to program cartridges.
 ## Reset
 Upon power-on, the CPU jumps to the address specified by the cpu_reset vector, i.e., it sets `pc` to the value in `$FFFC-$FFFD`.
 
+Also see https://www.nesdev.org/wiki/Init_code.
+
 ## NMI
 Non-maskable interrupt. Called on the beginning of the vertical blanking period for every frame.
 https://www.moria.us/blog/2018/03/nes-development
@@ -190,6 +192,7 @@ https://www.nesdev.org/wiki/Visual6502wiki/6502_all_256_Opcodes
 
 # Interrupts
 https://www.nesdev.org/wiki/Visual6502wiki/6502_Interrupt_Recognition_Stages_and_Tolerances
+https://www.nesdev.org/wiki/NMI
 
 # Terminology
 Control Line: any logic line that controls a logic device, e.g., register output enable, register load, register asynchronous clear, counter increment, counter reset, counter decrement, memory write-enable, tri-state buffer output-enable, bus-transceiver direction, ALU function selection lines, etc. Usually there are dozens of these control lines all over a CPU and the point of instruction decoding is to set the state of these control lines based on the current instruction and other status lines (e.g., flags for the conditional branches, etc.)
@@ -211,3 +214,36 @@ DP = *IP // load absolute address into data pointer
 DP = *DP + Y // resolve indirect address adding the Y index
 AC = AC + *DP + C // add with carry data from memory to accumulator register
 Stuff like that.
+
+# PPU
+Each scanline takes 341 "dots" (PPU cycles). Each PPU cycle a pixel is generated. The height of a frame is 240 scanlines.
+
+Each h-blank is 85 dots. NMI is used to start rendering.
+
+https://www.nesdev.org/wiki/Overscan
+
+__Overview__: The PPU outputs a 256x240 pixel screen, which is occupied by a background and sprites. The PPU does so by iteratively rendering each row, or __scanline__, leading to 240 visible scanlines for a single frame. The PPU also has some other scanlines which occur between each frame which are discussed below.
+
+__Background__: The background is broken up into 32x30 __tiles__, each tile consequently being 8x8 pixels.
+
+__Palette__: The palette is the collection of possible colors that the PPU uses. Each color is 1 byte and each palette has 1 "background" color and 3 other colors. There are 4 possible palettes for background tiles and each tile can choose only 1 palette to use, which is known as the tile's __attribute__. In other words, each tile can only be composed of 4 colors. The background color is common between all 4 palettes.
+
+__Attribute Table__: The attribute table gives the palette of each tile. Each byte of the attribute table represents the palette of a 4x4 square of tiles (32x32 square of pixels), with every 2 bits representing the palette of one quadrant of the 4x4 square. Consequently, each square of 2x2 tiles must have the same palette. To cover all 32x30 tiles, the palette is a 8x8 array.
+
+__Pattern Table__: The pattern table is the array of the 2x256 possible tile shapes. Each pattern is a 8x8 array of 2-bit numbers ranging from 0 through 4 representing each pixel. The 2-bit numbers refer to the index of the color in the tile's palette. This comes to a total of 128 bits or 16 bytes worth of data per tile pattern.
+
+__Nametable__: The nametable gives the __tile ID__ of each tile, which is the index of the pattern that tile has. Since there are 256 possible patterns at any given time, the tile ID is 1 byte.
+
+__Background Rendering__: During a normal visible scanline, for each tile intersecting the scanline (8 pixels each), the PPU fetches the nametable and attribute bytes (i.e., color palette) of the tile and then uses the tile ID from the nametable to fetch the 2 bytes of the pattern table associated with the part of the tile on the scanline (1 from the high bit plane and 1 from the low bit plane).
+It stores the 2 bits indexing the palette into a shift register and the high and low bit plane bytes to generate the color data for all 8 pixels into another shift register, which will then be combined for generating the background pixel color.
+
+__Sprites__:
+
+__Sprite Evaluation__: 
+
+__Shift Register__: A shift register is a type of circuit which composes of many latches in sequence controlled by the same clock cycle. When the clock triggers, each of the latches loads data from the previous latch, forming queue-like data storage. 
+If we have a __serial-in-serial-out (SISO)__ shift register, data is fed in one element at a time into the start latch and is read and popped out one element at a time at the end latch.
+If we have a __serial-in-parallel-out (SIPO)__ shift register, data is fed similarly to the way it is in SISO, but the data can then be read simultaneously from the entire array or popped from the end.
+SIPO shift registers are used to load up the data for each scanline before being output.
+
+__NMI__:

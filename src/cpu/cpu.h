@@ -6,9 +6,7 @@
 #define NES_EMULATOR__CPU_H
 
 #include <stdint.h>
-#include "../ram/ram.h"
-
-#define ERROR_UNKNOWN_INSTR (-1)
+// TODO: sort out private and public variables, organize
 
 /// Instruction bytes
 /// ==================== INTERNAL/IMPLIED Instructions ========================
@@ -81,50 +79,26 @@ struct cpu_registers
 extern struct cpu_registers cpu_registers;
 
 /// Instruction register
-extern uint8_t ir;
+extern uint8_t cpu_ir;
 
 /**
  * Address latch used for parsing and storing an address in memory specified by instructions
  */
-extern uint16_t addr_latch;
+extern uint16_t cpu_addr_latch;
+
+
+uint8_t* cpu_mem_map(uint16_t addr);
+extern uint8_t* (*cpu_cartridge_space_map)(uint16_t addr);
+
+/// Sends read signal to memory bus
+void cpu_read();
+
+/// Sends write signal to memory bus
+void cpu_write();
 
 /** =================================================== */
 
 void cpu_reset();
 void cpu_cycle();
-//
-///**
-// * Fetches next CPU instruction and increments PC
-// */
-//void cpu_fetch_instr();
-//
-///// Branching
-///**
-// * BRANCHING
-// *
-// * Cycle Timing:
-// *      0 - Fetches opcode (and optionally finishes previous instruction)
-// *          Increments PC
-// *      1 - Fetches operand
-// *          Increments PC
-// *      2 - Fetches next instruction opcode
-// *          If succeeds check, increment PC and go to next instruction, otherwise, add operand to low byte of PC
-// *      3+ - Fetch next instruction opcode
-// */
-//void cpu_branch(uint8_t opcode);
-//void cpu_bpl();  /// if positive (negative clear)
-//void cpu_bmi();  /// if minus (negative set)
-//void cpu_bvc();  /// if overflow clear
-//void cpu_bvs();  /// if overflow set
-//void cpu_bcc();  /// if carry clear
-//void cpu_bcs();  /// if carry set
-//void cpu_bne();  /// if not equal (zero clear)
-//void cpu_beq();  /// if equal (zero set)
-//
-//void cpu_brk();  /// break
-//
-//void cpu_ld(uint8_t opcode);
-//void cpu_lda(uint16_t addr);
-//void cpu_st();
 
 #endif //NES_EMULATOR__CPU_H

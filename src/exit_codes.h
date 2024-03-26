@@ -1,0 +1,14 @@
+//
+// Created by quate on 3/25/2024.
+//
+
+#ifndef NES_EMULATOR_EXIT_CODES_H
+#define NES_EMULATOR_EXIT_CODES_H
+
+
+#define ERROR_CODE__OH_NO (-4)
+#define ERROR_CODE__UNIMPLEMENTED (-3)
+#define ERROR_CODE__INVALID_FILE (-5)
+
+
+#endif //NES_EMULATOR_EXIT_CODES_H
